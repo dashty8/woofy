@@ -351,6 +351,9 @@ function registerProtocol() {
         ext === '.gltf' ? 'model/gltf+json' :
         ext === '.png'  ? 'image/png' :
         ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+        ext === '.mp3'  ? 'audio/mpeg' :
+        ext === '.ogg'  ? 'audio/ogg' :
+        ext === '.wav'  ? 'audio/wav' :
         'application/octet-stream';
       return new Response(data, {
         status: 200,

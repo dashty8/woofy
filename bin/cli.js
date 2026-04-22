@@ -3,6 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const readline = require('readline');
 const { spawn } = require('child_process');
 const { notify } = require('../lib/notify');
 const stateLib = require('../lib/state');
@@ -10,6 +11,49 @@ const stateLib = require('../lib/state');
 const ROOT = path.resolve(__dirname, '..');
 const CLIPS_FILE = path.join(os.homedir(), '.woofy', 'clips.json');
 const cmd = process.argv[2];
+
+function sanitizeName(raw) {
+  const trimmed = (raw || '').trim().replace(/\s+/g, ' ');
+  return trimmed.slice(0, 20);
+}
+
+async function maybeFirstRunNamePrompt() {
+  if (fs.existsSync(stateLib.STATE_FILE)) return;
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    stateLib.ensure();
+    return;
+  }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q) => new Promise((resolve) => rl.question(q, resolve));
+  console.log('');
+  console.log('     ╱|、');
+  console.log('    (˙ ∆ ˙)   Welcome to woofy!');
+  console.log('    /づ づ     A new puppy has arrived.');
+  console.log('');
+  let name = '';
+  while (!name) {
+    const answer = await ask('  What will you call them?  ');
+    name = sanitizeName(answer);
+    if (!name) console.log('     (please enter at least one character)');
+  }
+  rl.close();
+  stateLib.ensure();
+  const s = stateLib.load();
+  s.name = name;
+  stateLib.save(s);
+  console.log('');
+  console.log('  ✓ ' + name + ' is so excited to meet you!');
+  console.log('');
+  console.log('  Try these once they\'re up:');
+  console.log('    woofy pet     give scritches');
+  console.log('    woofy feed    fill their bowl');
+  console.log('    woofy play    play fetch');
+  console.log('    woofy stats   see how they\'re doing');
+  console.log('    woofy help    all commands');
+  console.log('');
+  console.log('  Launching...');
+  console.log('');
+}
 
 function start(detached) {
   const electron = require('electron');
@@ -110,9 +154,11 @@ function help() {
   switch (cmd) {
     case undefined:
     case 'foreground':
+      await maybeFirstRunNamePrompt();
       start(false);
       break;
     case 'start':
+      await maybeFirstRunNamePrompt();
       start(true);
       break;
     case 'bark':
@@ -148,6 +194,7 @@ function help() {
       showStats();
       break;
     case 'install':
+      await maybeFirstRunNamePrompt();
       require('../scripts/install');
       break;
     case 'uninstall':
