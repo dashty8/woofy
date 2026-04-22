@@ -1,0 +1,4 @@
+node_modules/
+package-lock.json
+electron/assets/*.glb
+electron/assets/*.gltf

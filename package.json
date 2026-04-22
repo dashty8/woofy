@@ -1,0 +1,39 @@
+{
+  "name": "woofy",
+  "version": "0.1.0",
+  "description": "A 3D puppy that sleeps in the corner of your screen and barks when Claude Code is done or needs input. Built on Electron + Three.js.",
+  "main": "electron/main.js",
+  "bin": {
+    "woofy": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node ./scripts/install.js",
+    "preuninstall": "node ./scripts/uninstall.js"
+  },
+  "keywords": [
+    "claude-code",
+    "notification",
+    "puppy",
+    "electron",
+    "three.js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^30.0.0",
+    "three": "^0.162.0",
+    "ws": "^8.16.0"
+  },
+  "files": [
+    "bin",
+    "electron",
+    "lib",
+    "scripts",
+    "hooks",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=16"
+  }
+}

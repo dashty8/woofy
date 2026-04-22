@@ -1,0 +1,7 @@
+{
+  "textures": {
+    "baseColor": "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Albedo.png",
+    "flipY": true
+  },
+  "alertHoldMs": 5000
+}
