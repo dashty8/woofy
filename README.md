@@ -72,14 +72,26 @@ npx woofy help
 ## Interaction
 
 - **Left-click the dog** → pet
-- **Right-click the dog** → radial menu (❤️ 🦴 🎾 💤 for pet/feed/play/rest)
+- **Press-and-drag the dog** → moves the window anywhere on the screen
+- **Right-click the dog** → radial menu:
+  - ❤️ pet
+  - 🦴 feed
+  - 🎾 play
+  - 💤 rest
+  - 🚶 walk-to — click anywhere on the screen and the dog walks there
+  - 👋 bye — friendly bark + clean shutdown (state is persisted)
 - **Hover the window** → HUD fades in showing mood, name, happiness, fullness, energy, bond
 
 ## Companion state
 
 State lives at `~/.woofy/state.json` and persists across restarts. Hunger, energy, happiness, and bond drift over time (about 2 hours from fed to starving). The puppy gets **bored** after 3 minutes of no activity (curls up) and **dormant** after 10 (lies down to sleep). A sudden burst of tool calls from Claude triggers an "overwhelmed" double-bark reaction.
 
-Mood is derived from the stats: `hungry`, `tired`, `wary`, `lonely`, `playful`, or `content`.
+Mood is derived from the stats: `hungry`, `tired`, `wary`, `lonely`, `playful`, or `content` — and it actually changes how the puppy behaves:
+
+- **Bubbles** are colored by mood (a hungry puppy says "kibble?" instead of "watching", a playful one says "let's goo!"; the mood emoji occasionally prepends the line)
+- **Idle fidgets** are mood-biased (playful → in-place jumps; tired → slow idles; hungry → ground-sniffing / drinking; wary → defensive crouch)
+- **Wandering** happens more when playful, rarely when tired/hungry, and is skipped entirely when wary
+- **Bark pitch and pacing** scale with energy — low-energy woofs are slower and lower; high-energy yips snap and pitch up
 
 ## Uninstall
 
@@ -95,4 +107,5 @@ npx woofy uninstall       # strips the 5 __woofy__-tagged hooks, leaves everythi
 ## Credits
 
 - 3D model: **Cartoon Dog – Shiba Inu** from Fab — bundled under the Fab Standard License (commercial distribution of projects incorporating Fab assets is permitted)
+- Rendering: full PBR (Albedo + Normal + Roughness + Metalness + AO), PMREM-baked image-based lighting, ACES Filmic tone mapping
 - Built on Electron + Three.js + Web Audio
