@@ -41,10 +41,10 @@
         left: 50%;
         transform: translateX(-50%) scale(0.9);
         display: flex;
-        gap: 4px;
-        padding: 6px 10px;
+        gap: 1px;
+        padding: 4px 6px;
         background: rgba(255, 255, 255, 0.98);
-        border-radius: 22px;
+        border-radius: 18px;
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
         pointer-events: none;
         opacity: 0;
@@ -59,11 +59,11 @@
       #menu button {
         background: none;
         border: none;
-        font-size: 22px;
+        font-size: 17px;
         line-height: 1;
         cursor: pointer;
-        padding: 6px 10px;
-        border-radius: 14px;
+        padding: 4px 5px;
+        border-radius: 10px;
         transition: background 140ms, transform 140ms;
       }
       #menu button:hover {
@@ -124,10 +124,12 @@
     <div id="hud"></div>
     <div id="bubble"></div>
     <div id="menu">
-      <button data-action="pet"  title="Pet">❤️</button>
-      <button data-action="feed" title="Feed">🦴</button>
-      <button data-action="play" title="Play">🎾</button>
-      <button data-action="rest" title="Rest">💤</button>
+      <button data-action="pet"     title="Pet">❤️</button>
+      <button data-action="feed"    title="Feed">🦴</button>
+      <button data-action="play"    title="Play">🎾</button>
+      <button data-action="rest"    title="Rest">💤</button>
+      <button data-action="walk-to" title="Walk to…">🚶</button>
+      <button data-action="quit"    title="Bye!">👋</button>
     </div>
     <canvas id="scene"></canvas>
     <script type="module" src="sound.js"></script>

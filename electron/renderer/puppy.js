@@ -41,7 +41,18 @@ const DEFAULT_CLIPS = {
     'Arm_Puppy|Idle_6',
     'Arm_Puppy|Turn_L_IP',
     'Arm_Puppy|Turn_R_IP'
-  ]
+  ],
+
+  // Mood-biased active pools. When personality mood is set via setMood(), playActive()
+  // mixes from the matching pool. Falls back to base activePool when mood is content/null
+  // or when the mood-specific pool resolves to nothing.
+  activePoolByMood: {
+    playful: ['Arm_Puppy|Jump_Inplace_Full', 'Arm_Puppy|Idle_2', 'Arm_Puppy|Idle_6', 'Arm_Puppy|Turn_L_IP', 'Arm_Puppy|Turn_R_IP'],
+    tired:   ['Arm_Puppy|Idle_4', 'Arm_Puppy|Idle_3'],
+    hungry:  ['Arm_Puppy|EatDrink_start', 'Arm_Puppy|Digging_start', 'Arm_Puppy|Drink_loop', 'Arm_Puppy|Idle_4'],
+    lonely:  ['Arm_Puppy|Idle_3', 'Arm_Puppy|Idle_4', 'Arm_Puppy|Turn_L_IP'],
+    wary:    ['Arm_Puppy|Crouch_Idle_start', 'Arm_Puppy|Idle_2', 'Arm_Puppy|Turn_R_IP']
+  }
 };
 
 const DEFAULT_CONFIG = {
@@ -159,10 +170,20 @@ export async function loadPuppy(modelUrl, configUrl) {
     .map((name) => clips.find((c) => c.name === name))
     .filter(Boolean);
 
+  // Mood-specific pools (any missing clip is silently dropped — degrade to base pool).
+  const activePoolByMood = {};
+  const moodPoolsConfig = config.clips.activePoolByMood || {};
+  for (const mood of Object.keys(moodPoolsConfig)) {
+    const resolved = (moodPoolsConfig[mood] || [])
+      .map((name) => clips.find((c) => c.name === name))
+      .filter(Boolean);
+    if (resolved.length > 0) activePoolByMood[mood] = resolved;
+  }
+
   console.log('[woofy] resolved clips: ' + JSON.stringify(
     Object.fromEntries(Object.entries(R).map(([k, v]) => [k, v ? v.name : '<missing>']))
   ));
-  console.log('[woofy] active pool: ' + activePool.length + ' clip(s)');
+  console.log('[woofy] active pool: ' + activePool.length + ' clip(s) — mood pools: ' + Object.keys(activePoolByMood).join(','));
 
   // Sequencer -------------------------------------------------------
   const queue = [];
@@ -264,10 +285,20 @@ export async function loadPuppy(modelUrl, configUrl) {
     if (R.greet) transient(R.greet);
   }
 
+  // Personality mood — set externally via setMood(). Influences activePool selection.
+  let personalityMood = null;
+  const MOOD_BIAS = 0.7;  // chance to draw from the mood-specific pool when one exists
+
+  function setMood(mood) {
+    if (typeof mood === 'string') personalityMood = mood;
+  }
+
   function playActive() {
-    if (activePool.length === 0) return null;
     if (currentMode !== 'idle') return null; // only fidget while idle
-    const pick = activePool[Math.floor(Math.random() * activePool.length)];
+    const moodPool = personalityMood && activePoolByMood[personalityMood];
+    const pool = (moodPool && Math.random() < MOOD_BIAS) ? moodPool : activePool;
+    if (!pool || pool.length === 0) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     transient(pick);
     return pick.name;
   }
@@ -354,6 +385,6 @@ export async function loadPuppy(modelUrl, configUrl) {
   return {
     root,
     clipNames: clips.map((c) => c.name),
-    puppy: { bark, alert, greet, playActive, overwhelmed, setMode, walk, stopWalk, eat, playClip, update }
+    puppy: { bark, alert, greet, playActive, overwhelmed, setMode, setMood, walk, stopWalk, eat, playClip, update }
   };
 }

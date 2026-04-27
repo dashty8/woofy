@@ -107,9 +107,53 @@ const BUBBLES = {
   test:        ['woof!']
 };
 
-function pickBubble(kind, explicit) {
+// Mood overlays — when the dog's personality mood (state.mood) is non-content, some
+// kinds get colored by it. The overlay is layered on; it doesn't replace the base pool.
+// Map: kind → mood → extra lines. Kinds without a mood entry just use the base pool.
+const MOOD_BUBBLES = {
+  prompt: {
+    hungry:  ['kibble?', 'food bowl?', '...dinner?', '*nose nudges bowl*'],
+    playful: ['let\'s goo!', '*zoomies?*', 'fetch??', 'yes yes yes'],
+    tired:   ['*yawn*', 'mm…ok', 'on it…zzz', 'sleepy sniff'],
+    lonely:  ['hi…?', '*soft tail wag*', 'pls', 'still here?'],
+    wary:    ['hmm.', '*sniff*', 'who?', '*ear flick*']
+  },
+  done: {
+    hungry:  ['done — snack?', 'all good. food?', 'yay — bowl?'],
+    playful: ['DONE!!', 'yes yes yes!', '*zoomies*'],
+    tired:   ['done… *yawn*', 'mm ok', 'phew'],
+    lonely:  ['done. pet?', 'yay…still here?'],
+    wary:    ['…done.', 'ok.']
+  },
+  tool: {
+    hungry:  ['*sniffs the bowl*', 'hmm…snack?'],
+    playful: ['ooo!', 'what is it?!', '*pounce-ready*'],
+    tired:   ['*slow blink*', 'mm.'],
+    lonely:  ['watching…'],
+    wary:    ['*ears back*', '...what.']
+  },
+  hi: {
+    hungry:  ['hi! food?', '*hopeful eyes*'],
+    playful: ['HI HI HI', '*spins*', 'yes!!'],
+    tired:   ['hi… *yawn*'],
+    lonely:  ['HI! finally!', 'you came!'],
+    wary:    ['…hi.', '*sniff*']
+  },
+  bored: {
+    hungry:  ['snacks…?', 'crumbs?'],
+    tired:   ['*long yawn*', 'mmnnn'],
+    lonely:  ['anyone?', '*sigh*']
+  }
+};
+
+const MOOD_OVERLAY_CHANCE = 0.45;  // when a mood-pool exists for the kind, draw from it this often
+
+function pickBubble(kind, explicit, mood) {
   if (typeof explicit === 'string' && explicit.length > 0) return explicit;
-  const pool = BUBBLES[kind];
+  const basePool = BUBBLES[kind];
+  const moodPool = (mood && MOOD_BUBBLES[kind] && MOOD_BUBBLES[kind][mood]) || null;
+  const useMood = moodPool && moodPool.length > 0 && Math.random() < MOOD_OVERLAY_CHANCE;
+  const pool = useMood ? moodPool : basePool;
   if (!pool || pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -122,7 +166,9 @@ const OVERWHELMED_COUNT  = 5;           // threshold before overwhelmed fires
 const OVERWHELMED_COOLDOWN = 20_000;    // don't fire again within this
 
 let lastActivityAt = Date.now();
-let currentMood = 'idle';  // 'idle' | 'bored' | 'dormant'
+// NOTE: `currentMood` here is the activity mode ('idle' | 'bored' | 'dormant'), NOT the
+// personality mood. Personality mood lives on `state.mood` (computed in lib/state.js).
+let currentMood = 'idle';
 let toolTimestamps = [];
 let lastOverwhelmedAt = 0;
 
@@ -171,11 +217,26 @@ function animateMoveWindow(x0, y0, x1, y1, duration, token, onDone) {
   tick();
 }
 
+// Personality-mood multiplier for wander cadence. Lower = wander more often.
+// Wary returns Infinity to skip wandering entirely until mood lifts.
+function moodWanderMultiplier(mood) {
+  switch (mood) {
+    case 'playful': return 0.55;
+    case 'tired':   return 2.2;
+    case 'hungry':  return 1.8;
+    case 'lonely':  return 1.3;
+    case 'wary':    return Infinity;
+    default:        return 1.0;
+  }
+}
+
 function startWander() {
   if (wandering) return;
   if (!win || win.isDestroyed() || !win.isVisible()) return;
   if (currentMood !== 'idle') return;
   if (Date.now() - lastActivityAt > WANDER_ACTIVITY_WINDOW) return;
+  if (state && state.mood === 'wary') return;
+  if (state && state.mood === 'tired' && Math.random() < 0.5) return;  // tired → frequently skip
 
   const [cx, cy] = win.getPosition();
   const { workArea } = screen.getPrimaryDisplay();
@@ -203,7 +264,14 @@ function startWander() {
 
 function scheduleWander() {
   if (wanderTimer) clearTimeout(wanderTimer);
-  const delay = WANDER_MIN_DELAY + Math.random() * (WANDER_MAX_DELAY - WANDER_MIN_DELAY);
+  const mult = moodWanderMultiplier(state && state.mood);
+  // Wary: re-check in a minute in case mood changes (don't permanently stop).
+  if (!isFinite(mult)) {
+    wanderTimer = setTimeout(scheduleWander, 60_000);
+    return;
+  }
+  const baseDelay = WANDER_MIN_DELAY + Math.random() * (WANDER_MAX_DELAY - WANDER_MIN_DELAY);
+  const delay = baseDelay * mult;
   wanderTimer = setTimeout(() => {
     wanderTimer = null;
     startWander();
@@ -214,14 +282,15 @@ function scheduleWander() {
 function checkMoodTimers() {
   if (!win || win.isDestroyed() || !win.isVisible()) return;
   const idleMs = Date.now() - lastActivityAt;
+  const personalityMood = state && state.mood;
   if (idleMs >= DORMANT_AFTER_MS && currentMood !== 'dormant') {
     currentMood = 'dormant';
     cancelWander(false);
-    win.webContents.send('notify', { kind: 'dormant', message: pickBubble('dormant') });
+    win.webContents.send('notify', { kind: 'dormant', message: pickBubble('dormant', null, personalityMood) });
   } else if (idleMs >= BORED_AFTER_MS && currentMood === 'idle') {
     currentMood = 'bored';
     cancelWander(false);
-    win.webContents.send('notify', { kind: 'bored', message: pickBubble('bored') });
+    win.webContents.send('notify', { kind: 'bored', message: pickBubble('bored', null, personalityMood) });
   }
 }
 
@@ -233,7 +302,7 @@ function noteToolForBurst() {
     lastOverwhelmedAt = now;
     toolTimestamps = [];
     if (win && !win.isDestroyed()) {
-      win.webContents.send('notify', { kind: 'overwhelmed', message: pickBubble('overwhelmed') });
+      win.webContents.send('notify', { kind: 'overwhelmed', message: pickBubble('overwhelmed', null, state && state.mood) });
     }
   }
 }
@@ -245,27 +314,27 @@ function handleEvent(msg) {
       noteActivity();
       state = stateLib.onEvent(state, 'hi');
       persist(); pushState();
-      win.webContents.send('notify', { kind: 'hi', message: pickBubble('hi') });
+      win.webContents.send('notify', { kind: 'hi', message: pickBubble('hi', null, state.mood) });
       break;
     case 'done':
       noteActivity();
       cancelWander();
       state = stateLib.onEvent(state, 'done');
       persist(); pushState();
-      win.webContents.send('notify', { kind: 'done', message: pickBubble('done') });
+      win.webContents.send('notify', { kind: 'done', message: pickBubble('done', null, state.mood) });
       break;
     case 'alert':
       noteActivity();
       cancelWander();
       state = stateLib.onEvent(state, 'alert');
       persist(); pushState();
-      win.webContents.send('notify', { kind: 'alert', message: pickBubble('alert', msg.message) });
+      win.webContents.send('notify', { kind: 'alert', message: pickBubble('alert', msg.message, state.mood) });
       break;
     case 'prompt':
       noteActivity();
       state = stateLib.onEvent(state, 'prompt');
       persist(); pushState();
-      win.webContents.send('notify', { kind: 'prompt', message: pickBubble('prompt') });
+      win.webContents.send('notify', { kind: 'prompt', message: pickBubble('prompt', null, state.mood) });
       break;
     case 'tool':
       noteActivity();
@@ -273,7 +342,7 @@ function handleEvent(msg) {
       state = stateLib.onEvent(state, 'tool');
       persist(); pushState();
       if (Math.random() < 0.35) {
-        win.webContents.send('notify', { kind: 'tool', message: pickBubble('tool') });
+        win.webContents.send('notify', { kind: 'tool', message: pickBubble('tool', null, state.mood) });
       } else {
         win.webContents.send('notify', { kind: 'tool', message: null });
       }
@@ -286,7 +355,7 @@ function handleEvent(msg) {
       cancelWander();
       state = stateLib.applyAction(state, msg.type);
       persist(); pushState();
-      win.webContents.send('notify', { kind: msg.type, message: pickBubble(msg.type) });
+      win.webContents.send('notify', { kind: msg.type, message: pickBubble(msg.type, null, state.mood) });
       break;
     case 'name':
       if (typeof msg.name === 'string' && msg.name.trim().length > 0 && msg.name.length < 30) {
@@ -301,7 +370,7 @@ function handleEvent(msg) {
       }
       break;
     case 'test':
-      win.webContents.send('notify', { kind: 'test', message: pickBubble('test') });
+      win.webContents.send('notify', { kind: 'test', message: pickBubble('test', null, state.mood) });
       break;
     case 'clip':
       if (typeof msg.name === 'string' && msg.name.length > 0) {
@@ -319,6 +388,108 @@ ipcMain.on('action', (_, type) => {
   if (!['pet', 'feed', 'play', 'rest'].includes(type)) return;
   handleEvent({ type });
 });
+
+// Manual drag — renderer captures pointer + screen-coord deltas, main moves the window.
+let dragInitialPos = null;
+ipcMain.on('drag-start', () => {
+  if (!win || win.isDestroyed()) return;
+  dragInitialPos = win.getPosition();
+  cancelWander();
+  noteActivity();
+});
+ipcMain.on('drag-move', (_, dx, dy) => {
+  if (!win || win.isDestroyed() || !dragInitialPos) return;
+  win.setPosition(dragInitialPos[0] + Math.round(dx), dragInitialPos[1] + Math.round(dy));
+});
+ipcMain.on('drag-end', () => {
+  dragInitialPos = null;
+  noteActivity();
+});
+
+// Walk-to-clicked-position — full-display transparent overlay captures one click.
+let targetWin = null;
+function openTargetOverlay() {
+  if (targetWin && !targetWin.isDestroyed()) { targetWin.focus(); return; }
+  if (!win || win.isDestroyed()) return;
+  const display = screen.getDisplayMatching(win.getBounds());
+  const { workArea } = display;
+  targetWin = new BrowserWindow({
+    x: workArea.x,
+    y: workArea.y,
+    width: workArea.width,
+    height: workArea.height,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  targetWin.setAlwaysOnTop(true, 'screen-saver');
+  targetWin.loadFile(path.join(__dirname, 'renderer', 'target.html'));
+  targetWin.on('closed', () => { targetWin = null; });
+}
+function closeTargetOverlay() {
+  if (targetWin && !targetWin.isDestroyed()) {
+    try { targetWin.close(); } catch {}
+  }
+  targetWin = null;
+}
+
+ipcMain.on('walk-to-start', () => {
+  openTargetOverlay();
+});
+ipcMain.on('walk-to-cancel', () => {
+  closeTargetOverlay();
+});
+ipcMain.on('walk-to-pick', (_, screenX, screenY) => {
+  closeTargetOverlay();
+  walkWindowToScreen(screenX, screenY);
+});
+
+// Manual shutdown — persist state then quit. Renderer plays a bark + bubble before sending this.
+ipcMain.on('quit', () => {
+  try { persist(); } catch {}
+  closeTargetOverlay();
+  app.quit();
+});
+
+function walkWindowToScreen(targetScreenX, targetScreenY) {
+  if (!win || win.isDestroyed()) return;
+  cancelWander();
+  noteActivity();
+  const [cx, cy] = win.getPosition();
+  const display = screen.getDisplayMatching(win.getBounds());
+  const { workArea } = display;
+  const margin = 8;
+  const minX = workArea.x + margin;
+  const maxX = workArea.x + workArea.width - PET_SIZE - margin;
+  const minY = workArea.y + margin;
+  const maxY = workArea.y + workArea.height - PET_SIZE - margin;
+  const tx = Math.max(minX, Math.min(maxX, Math.round(targetScreenX - PET_SIZE / 2)));
+  const ty = Math.max(minY, Math.min(maxY, Math.round(targetScreenY - PET_SIZE / 2)));
+  if (Math.abs(tx - cx) < 6 && Math.abs(ty - cy) < 6) return;
+  const direction = tx >= cx ? 1 : -1;
+  const distance = Math.hypot(tx - cx, ty - cy);
+  const duration = Math.min(10000, Math.max(700, distance * 4.5)); // ~4.5ms per pixel
+
+  wandering = true;  // reuse the wander pipeline so walk-start/stop notifies fire
+  const myToken = ++wanderToken;
+  win.webContents.send('notify', { kind: 'walk-start', direction, message: null });
+  animateMoveWindow(cx, cy, tx, ty, duration, myToken, () => {
+    if (myToken !== wanderToken) return;
+    wandering = false;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('notify', { kind: 'walk-stop', message: null });
+    }
+  });
+}
 
 ipcMain.on('clips-loaded', (_, names) => {
   if (!Array.isArray(names)) return;

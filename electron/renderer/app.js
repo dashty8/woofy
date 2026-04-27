@@ -7,8 +7,50 @@ const bubbleEl = document.getElementById('bubble');
 const hudEl = document.getElementById('hud');
 const menuEl = document.getElementById('menu');
 
-// Left-click anywhere in the window = pet.
+// Left-click = pet. Press-and-drag = move the window. Threshold separates the two so
+// brief drift on a click doesn't trigger movement.
+const DRAG_THRESHOLD = 5;
+let dragState = null;        // { startScreenX, startScreenY, pointerId, moved }
+let suppressNextClick = false;
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  if (menuEl && menuEl.contains(e.target)) return;
+  dragState = {
+    startScreenX: e.screenX,
+    startScreenY: e.screenY,
+    pointerId: e.pointerId,
+    moved: false
+  };
+  try { canvas.setPointerCapture(e.pointerId); } catch {}
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  const dx = e.screenX - dragState.startScreenX;
+  const dy = e.screenY - dragState.startScreenY;
+  if (!dragState.moved) {
+    if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    dragState.moved = true;
+    if (window.woofy) window.woofy.dragStart();
+  }
+  if (window.woofy) window.woofy.dragMove(dx, dy);
+});
+function endDrag(e) {
+  if (!dragState) return;
+  if (e && e.pointerId !== dragState.pointerId) return;
+  const moved = dragState.moved;
+  try { if (e) canvas.releasePointerCapture(e.pointerId); } catch {}
+  dragState = null;
+  if (moved) {
+    if (window.woofy) window.woofy.dragEnd();
+    suppressNextClick = true;  // browser still fires click after a drag
+  }
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
 canvas.addEventListener('click', (e) => {
+  if (suppressNextClick) { suppressNextClick = false; return; }
   if (menuEl && menuEl.contains(e.target)) return;
   if (window.woofy) window.woofy.action('pet');
 });
@@ -29,12 +71,28 @@ window.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   showMenu();
 });
+function goodbyeAndQuit() {
+  if (!window.woofy) return;
+  showBubble('bye!');
+  const energy = latestState && latestState.energy;
+  if (puppyCtrl) {
+    puppyCtrl.greet();
+    puppyCtrl.bark();
+  }
+  bark('done', energy);
+  setTimeout(() => window.woofy.quit(), 850);
+}
+
 if (menuEl) {
   menuEl.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
-    if (window.woofy) window.woofy.action(action);
+    if (window.woofy) {
+      if (action === 'walk-to') window.woofy.walkToStart();
+      else if (action === 'quit') goodbyeAndQuit();
+      else window.woofy.action(action);
+    }
     hideMenu();
   });
 }
@@ -51,6 +109,10 @@ const MOOD_EMOJI = {
   wary:     '🤨'
 };
 
+// Latest companion state — updated by onState. Lets bubble/sound code read mood/energy
+// without main.js having to thread them through every event payload.
+let latestState = null;
+
 function renderHud(s) {
   if (!hudEl || !s) return;
   const emoji = MOOD_EMOJI[s.mood] || '🐾';
@@ -59,9 +121,21 @@ function renderHud(s) {
 }
 
 let bubbleHideTimer = null;
+function decorateWithMood(text) {
+  if (!text) return text;
+  const mood = latestState && latestState.mood;
+  if (!mood || mood === 'content') return text;
+  const emoji = MOOD_EMOJI[mood];
+  if (!emoji) return text;
+  // Skip if the bubble already starts with an emoji-ish glyph (avoid double emoji).
+  if (/^[^\w\s]/.test(text)) return text;
+  if (Math.random() < 0.18) return emoji + ' ' + text;
+  return text;
+}
+
 function showBubble(text) {
   if (!bubbleEl) return;
-  bubbleEl.textContent = text;
+  bubbleEl.textContent = decorateWithMood(text);
   bubbleEl.classList.add('show');
   if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
   bubbleHideTimer = setTimeout(() => bubbleEl.classList.remove('show'), 2400);
@@ -128,6 +202,8 @@ async function setup() {
       );
       puppyRoot.add(root);
       puppyCtrl = puppy;
+      // Apply any state that arrived before the model finished loading.
+      if (latestState && puppyCtrl.setMood) puppyCtrl.setMood(latestState.mood);
       if (window.woofy && window.woofy.sendClips) window.woofy.sendClips(clipNames);
       console.log(
         '[woofy] loaded ' + modelUrl.split('/').pop() +
@@ -151,24 +227,25 @@ if (window.woofy) {
   window.woofy.onNotify((data) => {
     const { kind, message, direction } = data || {};
     console.log('[woofy] notify kind=' + kind + ' msg=' + (message || '(none)'));
+    const energy = latestState && latestState.energy;
     if (puppyCtrl) {
       switch (kind) {
         case 'hi':          puppyCtrl.greet(); break;
-        case 'done':        puppyCtrl.bark(); bark('done'); break;
-        case 'alert':       puppyCtrl.alert(); bark('alert'); break;
+        case 'done':        puppyCtrl.bark(); bark('done', energy); break;
+        case 'alert':       puppyCtrl.alert(); bark('alert', energy); break;
         case 'prompt':      puppyCtrl.playActive(); break;
         case 'tool':        puppyCtrl.playActive(); break;
         case 'bored':       puppyCtrl.setMode('bored'); break;
         case 'dormant':     puppyCtrl.setMode('dormant'); break;
         case 'idle':        puppyCtrl.setMode('idle'); break;
-        case 'overwhelmed': puppyCtrl.overwhelmed(); bark('alert'); break;
+        case 'overwhelmed': puppyCtrl.overwhelmed(); bark('alert', energy); break;
         case 'walk-start':  puppyCtrl.walk(direction ?? 1); break;
         case 'walk-stop':   puppyCtrl.stopWalk(); break;
         case 'pet':         puppyCtrl.greet(); break;
         case 'feed':        puppyCtrl.eat(); break;
-        case 'play':        puppyCtrl.playActive(); puppyCtrl.bark(); bark('done'); break;
+        case 'play':        puppyCtrl.playActive(); puppyCtrl.bark(); bark('done', energy); break;
         case 'rest':        puppyCtrl.setMode('dormant'); break;
-        case 'test':        puppyCtrl.bark(); bark('done'); break;
+        case 'test':        puppyCtrl.bark(); bark('done', energy); break;
         default: break;
       }
     }
@@ -180,6 +257,8 @@ if (window.woofy) {
     if (played) showBubble(played);
   });
   window.woofy.onState((s) => {
+    latestState = s;
+    if (puppyCtrl && puppyCtrl.setMood) puppyCtrl.setMood(s.mood);
     console.log('[woofy] state ' + s.name + ' mood=' + s.mood + ' h=' + Math.round(s.happiness) + ' f=' + Math.round(100 - s.hunger) + ' e=' + Math.round(s.energy) + ' b=' + Math.round(s.bond));
     renderHud(s);
   });

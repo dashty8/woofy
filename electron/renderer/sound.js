@@ -87,29 +87,44 @@ function synthBark(ac, t, opts) {
 // Kick off sample preload as soon as this module is imported.
 loadBarkBuffer();
 
-export function bark(kind = 'done') {
+// Energy-driven modulation. energy is 0-100 (state.energy); maps to playbackRate scaling
+// and a subtle gain trim. Low energy → lower/slower (sleepier woof), high energy → snappier.
+// Returns { rateMul, gainMul, gapMul } where gapMul stretches the inter-yip gap.
+function energyModulation(energy) {
+  if (typeof energy !== 'number') return { rateMul: 1, gainMul: 1, gapMul: 1 };
+  // Map 0..100 → -0.18..+0.15 around 1.0 for rate. Pivot near 50.
+  const t = Math.max(0, Math.min(100, energy)) / 100;          // 0..1
+  const rateMul = 0.85 + t * 0.30;                             // 0.85 (sleepy) → 1.15 (snappy)
+  const gainMul = 0.85 + t * 0.20;                             // 0.85 → 1.05
+  const gapMul  = 1.30 - t * 0.45;                             // 1.30 (drawn out) → 0.85 (clipped)
+  return { rateMul, gainMul, gapMul };
+}
+
+export function bark(kind = 'done', energy) {
   const ac = getCtx();
   if (ac.state === 'suspended') ac.resume();
+
+  const { rateMul, gainMul, gapMul } = energyModulation(energy);
 
   loadBarkBuffer().then(() => {
     const t = ac.currentTime;
     if (barkBuffer) {
       if (kind === 'alert') {
         // Sharper, higher, two quick yips — rate bump raises pitch.
-        playSample(ac, t + 0.00, { rate: 1.18, gain: 0.95 });
-        playSample(ac, t + 0.22, { rate: 1.24, gain: 0.95 });
+        playSample(ac, t + 0.00,            { rate: 1.18 * rateMul, gain: 0.95 * gainMul });
+        playSample(ac, t + 0.22 * gapMul,   { rate: 1.24 * rateMul, gain: 0.95 * gainMul });
       } else {
         // Friendly single woof at natural pitch, soft follow-up.
-        playSample(ac, t + 0.00, { rate: 1.0,  gain: 0.95 });
-        playSample(ac, t + 0.32, { rate: 1.05, gain: 0.75 });
+        playSample(ac, t + 0.00,            { rate: 1.00 * rateMul, gain: 0.95 * gainMul });
+        playSample(ac, t + 0.32 * gapMul,   { rate: 1.05 * rateMul, gain: 0.75 * gainMul });
       }
     } else {
       if (kind === 'alert') {
-        synthBark(ac, t + 0.00, { pitch: 780, dur: 0.11 });
-        synthBark(ac, t + 0.16, { pitch: 820, dur: 0.11 });
+        synthBark(ac, t + 0.00,           { pitch: 780 * rateMul, dur: 0.11 / rateMul });
+        synthBark(ac, t + 0.16 * gapMul,  { pitch: 820 * rateMul, dur: 0.11 / rateMul });
       } else {
-        synthBark(ac, t,        { pitch: 540, dur: 0.18 });
-        synthBark(ac, t + 0.26, { pitch: 560, dur: 0.14 });
+        synthBark(ac, t,                  { pitch: 540 * rateMul, dur: 0.18 / rateMul });
+        synthBark(ac, t + 0.26 * gapMul,  { pitch: 560 * rateMul, dur: 0.14 / rateMul });
       }
     }
   });
