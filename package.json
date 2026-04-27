@@ -1,5 +1,5 @@
 {
-  "name": "woofy",
+  "name": "claude-woofy",
   "version": "0.1.0",
   "description": "A 3D puppy that sleeps in the corner of your screen and barks when Claude Code is done or needs input. Built on Electron + Three.js.",
   "main": "electron/main.js",

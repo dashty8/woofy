@@ -7,13 +7,13 @@ A tiny 3D Shiba Inu that lives in the corner of your screen and keeps you compan
 ## Install
 
 ```bash
-git clone https://github.com/dashty8/woofy.git
-cd woofy
-npm install
-npx woofy install      # explicit, opt-in: merges 5 hooks into ~/.claude/settings.json
+npm install -g claude-woofy   # installs the woofy CLI globally
+woofy install                 # explicit, opt-in: merges 5 hooks into ~/.claude/settings.json
 ```
 
-The hook install is **opt-in** — `npm install` will not modify your Claude Code settings on its own. When you run `npx woofy install`, it merges 5 hooks into `~/.claude/settings.json`, all tagged `__woofy__` so `npx woofy uninstall` can strip them cleanly later:
+(Or clone the repo and run `npm install && node bin/cli.js install` if you'd rather run from source.)
+
+The npm package is **`claude-woofy`** but the binary it installs is just `woofy`. Hook install is **opt-in** — installing the package will not modify your Claude Code settings on its own. When you run `woofy install`, it merges 5 hooks into `~/.claude/settings.json`, all tagged `__woofy__` so `woofy uninstall` can strip them cleanly later:
 
 | Hook | Fires when | Puppy reacts with |
 |---|---|---|
@@ -30,7 +30,7 @@ The 3D Shiba model ships with the repo under the Fab Standard License — bundli
 ## First run
 
 ```bash
-npx woofy
+woofy
 ```
 
 First time you run it in a terminal, you'll get a prompt to name your puppy:
@@ -48,28 +48,28 @@ After that, the window appears in the bottom-right corner and starts idling.
 ## CLI
 
 ```bash
-npx woofy                 # launch in foreground (logs to stdout)
-npx woofy start           # launch detached in the background
+woofy                 # launch in foreground (logs to stdout)
+woofy start           # launch detached in the background
 
-npx woofy pet             # give scritches (+happiness, +bond)
-npx woofy feed            # fill their bowl (-hunger, +happiness)
-npx woofy play            # play fetch (+happiness, -energy, +bond)
-npx woofy rest            # tell them to rest (+energy)
+woofy pet             # give scritches (+happiness, +bond)
+woofy feed            # fill their bowl (-hunger, +happiness)
+woofy play            # play fetch (+happiness, -energy, +bond)
+woofy rest            # tell them to rest (+energy)
 
-npx woofy stats           # print current stats from ~/.woofy/state.json
-npx woofy name <name>     # rename
-npx woofy wander          # force a bottom-strip wander
+woofy stats           # print current stats from ~/.woofy/state.json
+woofy name <name>     # rename
+woofy wander          # force a bottom-strip wander
 
-npx woofy bark            # send a test "done" bark
-npx woofy alert "hey"     # send a test alert bark with an optional message
+woofy bark            # send a test "done" bark
+woofy alert "hey"     # send a test alert bark with an optional message
 
-npx woofy anims           # list all 83 animation clip names
-npx woofy anims sit       # filter by substring
-npx woofy anim digging    # play a specific clip
+woofy anims           # list all 83 animation clip names
+woofy anims sit       # filter by substring
+woofy anim digging    # play a specific clip
 
-npx woofy install         # re-install the Claude Code hooks
-npx woofy uninstall       # remove the __woofy__-tagged hooks
-npx woofy help
+woofy install         # re-install the Claude Code hooks
+woofy uninstall       # remove the __woofy__-tagged hooks
+woofy help
 ```
 
 ## Interaction
@@ -99,11 +99,11 @@ Mood is derived from the stats: `hungry`, `tired`, `wary`, `lonely`, `playful`, 
 ## Uninstall
 
 ```bash
-npx woofy uninstall       # strips the 5 __woofy__-tagged hooks, leaves everything else alone
-npm uninstall -g woofy    # (or remove the local clone)
+woofy uninstall              # strips the 5 __woofy__-tagged hooks, leaves everything else alone
+npm uninstall -g claude-woofy   # (or remove the local clone)
 ```
 
-`npx woofy uninstall` only touches hook entries it added itself (anything tagged `__woofy__`). The rest of your `~/.claude/settings.json` is left untouched.
+`woofy uninstall` only touches hook entries it added itself (anything tagged `__woofy__`). The rest of your `~/.claude/settings.json` is left untouched.
 
 ## What woofy is / isn't
 
