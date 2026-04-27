@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { loadPuppy } from './puppy.js';
 import { bark, yawnSound } from './sound.js';
 
@@ -150,11 +151,26 @@ const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   alpha: true,
-  premultipliedAlpha: false
+  premultipliedAlpha: false,
+  powerPreference: 'high-performance'
 });
 renderer.setClearColor(0x000000, 0);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// ACES Filmic + neutral exposure gives PBR materials cinematic falloff and prevents the
+// clipped, plastic look you get with no tone mapping at all.
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+// Image-based lighting via a tiny baked room env. Without this, MeshStandardMaterial
+// reads as flat plastic — even with strong direct lights. PMREMGenerator compiles the
+// RoomEnvironment scene into a prefiltered cubemap for IBL.
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+const envScene = new RoomEnvironment(renderer);
+const envTex = pmrem.fromScene(envScene, 0.04).texture;
+// scene.environment lights all MeshStandardMaterials in the scene; scene.background
+// stays unset so the window keeps its transparency.
 
 function resize() {
   const w = window.innerWidth;
@@ -166,13 +182,21 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+// Apply IBL — must come after `scene` is created.
+scene.environment = envTex;
+
+// With env-map fill, direct lights stop having to do all the work — drop ambient and let
+// the env handle ambient + diffuse fill. Key + rim still shape highlights.
+scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+const dir = new THREE.DirectionalLight(0xffffff, 1.35);
 dir.position.set(2, 4, 2);
 scene.add(dir);
-const rim = new THREE.DirectionalLight(0xffe0aa, 0.35);
-rim.position.set(-2, 1, -2);
+const rim = new THREE.DirectionalLight(0xffe0aa, 0.55);
+rim.position.set(-2, 1.2, -2);
 scene.add(rim);
+// Subtle hemisphere bounce — sky/ground tint pulls warmth into the underside.
+const hemi = new THREE.HemisphereLight(0xfff0e0, 0x402a18, 0.25);
+scene.add(hemi);
 
 // Soft ground shadow disc.
 const shadow = new THREE.Mesh(

@@ -1,6 +1,10 @@
 {
   "textures": {
-    "baseColor": "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Albedo.png",
+    "baseColor":    "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Albedo.png",
+    "normalMap":    "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Normal.png",
+    "roughnessMap": "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Roughness.png",
+    "metalnessMap": "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_Metallic.png",
+    "aoMap":        "woofy://assets/AnimatedDog_FBX/Textures/texture/Shiba_puppy_AO.png",
     "flipY": true
   },
   "alertHoldMs": 5000

@@ -117,29 +117,70 @@ export async function loadPuppy(modelUrl, configUrl) {
   if (config.facingAxis === '+x') model.rotation.y = -Math.PI / 2;
   root.add(model);
 
-  // Optional baseColor texture for FBX meshes that ship without materials.
-  if (config.textures && config.textures.baseColor) {
+  // PBR material setup — replace FBX's default materials with MeshStandardMaterial driven
+  // by the full Albedo/Normal/Roughness/Metalness/AO map set. The env map (set on the scene
+  // by app.js via PMREM) lights the standard material; without it the dog reads as flat plastic.
+  const tcfg = (config && config.textures) || {};
+  if (tcfg.baseColor) {
     try {
       const texLoader = new THREE.TextureLoader();
-      const baseColor = await new Promise((resolve, reject) =>
-        texLoader.load(config.textures.baseColor, resolve, undefined, reject)
-      );
-      baseColor.colorSpace = THREE.SRGBColorSpace;
-      baseColor.flipY = !!config.textures.flipY;
+      const flipY = !!tcfg.flipY;
+      const loadTex = (url, srgb) => new Promise((resolve, reject) => {
+        texLoader.load(url, (tex) => {
+          if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+          tex.flipY = flipY;
+          resolve(tex);
+        }, undefined, reject);
+      });
+      const safe = (p) => p ? p.catch((e) => { console.warn('[woofy] tex load failed: ' + e.message); return null; }) : Promise.resolve(null);
+
+      const [albedo, normalTex, roughnessTex, metalnessTex, aoTex] = await Promise.all([
+        safe(loadTex(tcfg.baseColor, true)),
+        safe(tcfg.normalMap    ? loadTex(tcfg.normalMap,    false) : null),
+        safe(tcfg.roughnessMap ? loadTex(tcfg.roughnessMap, false) : null),
+        safe(tcfg.metalnessMap ? loadTex(tcfg.metalnessMap, false) : null),
+        safe(tcfg.aoMap        ? loadTex(tcfg.aoMap,        false) : null)
+      ]);
+
+      const sharedMat = new THREE.MeshStandardMaterial({
+        map: albedo,
+        normalMap: normalTex,
+        roughnessMap: roughnessTex,
+        metalnessMap: metalnessTex,
+        aoMap: aoTex,
+        color: new THREE.Color(0xffffff),
+        // Scalars are multiplied by the maps. With a metalness map present on a
+        // furry dog (mostly black), scalar=1 keeps highlights tight; with no map it'd
+        // make the model look chrome — fall back to 0 in that case.
+        metalness: metalnessTex ? 1.0 : 0.0,
+        roughness: roughnessTex ? 1.0 : 0.85,
+        aoMapIntensity: 1.0,
+        normalScale: new THREE.Vector2(1.0, 1.0)
+      });
+
       let applied = 0;
       model.traverse((obj) => {
-        if (!obj.isMesh || !obj.material) return;
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        for (const m of mats) {
-          m.map = baseColor;
-          m.color = new THREE.Color(0xffffff);
-          m.needsUpdate = true;
-          applied++;
+        if (!obj.isMesh) return;
+        // aoMap requires uv2; copy from uv if missing (FBX usually only has uv channel 0).
+        if (aoTex && obj.geometry && obj.geometry.attributes && obj.geometry.attributes.uv && !obj.geometry.attributes.uv2) {
+          obj.geometry.setAttribute('uv2', obj.geometry.attributes.uv);
         }
+        // Dispose the FBX's original materials before replacing.
+        const oldMats = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+        for (const old of oldMats) { if (old && old.dispose) old.dispose(); }
+        obj.material = Array.isArray(obj.material) ? obj.material.map(() => sharedMat) : sharedMat;
+        applied++;
       });
-      console.log('[woofy] applied baseColor to ' + applied + ' material(s)');
+      const usedMaps = [
+        albedo && 'albedo',
+        normalTex && 'normal',
+        roughnessTex && 'roughness',
+        metalnessTex && 'metalness',
+        aoTex && 'ao'
+      ].filter(Boolean).join('+');
+      console.log('[woofy] PBR material applied to ' + applied + ' mesh(es) — maps: ' + usedMaps);
     } catch (err) {
-      console.warn('[woofy] baseColor load failed: ' + err.message);
+      console.warn('[woofy] PBR material load failed: ' + err.message);
     }
   }
 
