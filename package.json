@@ -7,19 +7,28 @@
     "woofy": "./bin/cli.js"
   },
   "scripts": {
-    "start": "electron .",
-    "postinstall": "node ./scripts/install.js",
-    "preuninstall": "node ./scripts/uninstall.js"
+    "start": "electron ."
   },
   "keywords": [
     "claude-code",
+    "claude",
     "notification",
+    "companion",
     "puppy",
+    "shiba",
     "electron",
     "three.js"
   ],
-  "author": "",
+  "author": "Husain Dashti",
   "license": "MIT",
+  "homepage": "https://github.com/dashty8/woofy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dashty8/woofy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dashty8/woofy/issues"
+  },
   "dependencies": {
     "electron": "^30.0.0",
     "three": "^0.162.0",
@@ -31,9 +40,11 @@
     "lib",
     "scripts",
     "hooks",
+    "LICENSE",
+    "LICENSES",
     "README.md"
   ],
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   }
 }

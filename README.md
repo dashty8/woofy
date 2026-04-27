@@ -10,9 +10,10 @@ A tiny 3D Shiba Inu that lives in the corner of your screen and keeps you compan
 git clone https://github.com/dashty8/woofy.git
 cd woofy
 npm install
+npx woofy install      # explicit, opt-in: merges 5 hooks into ~/.claude/settings.json
 ```
 
-`npm install` runs a postinstall that merges 5 hooks into `~/.claude/settings.json`, all tagged `__woofy__` so uninstall can clean up cleanly:
+The hook install is **opt-in** — `npm install` will not modify your Claude Code settings on its own. When you run `npx woofy install`, it merges 5 hooks into `~/.claude/settings.json`, all tagged `__woofy__` so `npx woofy uninstall` can strip them cleanly later:
 
 | Hook | Fires when | Puppy reacts with |
 |---|---|---|
@@ -22,7 +23,9 @@ npm install
 | `Stop` | Claude finishes a turn | bark sound + bark animation + "done!" bubble |
 | `Notification` | Claude needs your input or permission | sharper double-yip bark + "heads up!" bubble |
 
-The 3D Shiba model ships with the repo (Fab Standard License — bundling is permitted, standalone redistribution isn't).
+> **Note on size:** the bundled Shiba model + PBR texture set is ~45 MB on disk, and Electron itself is ~120 MB once `npm install` has run. Expect ~165 MB after a full install.
+
+The 3D Shiba model ships with the repo under the Fab Standard License — bundling is permitted, standalone redistribution isn't. See [`LICENSES/FAB_NOTICE.md`](LICENSES/FAB_NOTICE.md) for full attribution.
 
 ## First run
 
@@ -97,7 +100,10 @@ Mood is derived from the stats: `hungry`, `tired`, `wary`, `lonely`, `playful`, 
 
 ```bash
 npx woofy uninstall       # strips the 5 __woofy__-tagged hooks, leaves everything else alone
+npm uninstall -g woofy    # (or remove the local clone)
 ```
+
+`npx woofy uninstall` only touches hook entries it added itself (anything tagged `__woofy__`). The rest of your `~/.claude/settings.json` is left untouched.
 
 ## What woofy is / isn't
 
@@ -106,6 +112,10 @@ npx woofy uninstall       # strips the 5 __woofy__-tagged hooks, leaves everythi
 
 ## Credits
 
-- 3D model: **Cartoon Dog – Shiba Inu** from Fab — bundled under the Fab Standard License (commercial distribution of projects incorporating Fab assets is permitted)
+- 3D model: **Cartoon Dog – Shiba Inu** from Fab — bundled under the Fab Standard License. Bundling inside a project is permitted; standalone redistribution of the asset is not. See [`LICENSES/FAB_NOTICE.md`](LICENSES/FAB_NOTICE.md)
 - Rendering: full PBR (Albedo + Normal + Roughness + Metalness + AO), PMREM-baked image-based lighting, ACES Filmic tone mapping
 - Built on Electron + Three.js + Web Audio
+
+## License
+
+The woofy source code (everything in this repository **except** the bundled 3D model and textures) is released under the [MIT License](LICENSE). The Shiba Inu model and texture set under `electron/assets/AnimatedDog_FBX/` are under the Fab Standard License — see [`LICENSES/FAB_NOTICE.md`](LICENSES/FAB_NOTICE.md).
